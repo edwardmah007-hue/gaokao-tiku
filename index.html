@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f5b4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>物化生题库</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <h1 class="brand">物化生题库</h1>
+    <button class="btn primary" id="btn-add" type="button">＋ 录题</button>
+  </div>
+</header>
+
+<main id="app" class="wrap"></main>
+
+<nav class="tabs" aria-label="主导航">
+  <a href="#list" data-view="list">题库</a>
+  <a href="#papers" data-view="papers">试卷</a>
+  <a href="#review" data-view="review">复习<span class="badge" id="due-badge" hidden></span></a>
+  <a href="#stats" data-view="stats">统计</a>
+  <a href="#data" data-view="data">数据</a>
+</nav>
+
+<dialog id="dlg"></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>
