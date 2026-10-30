@@ -340,3 +340,40 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); }
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* 备份提醒 */
+.banner {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--r);
+  color: var(--warn);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+/* 看大图 */
+.q-imgs img { cursor: zoom-in; }
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.viewer-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line);
+}
+.viewer-scroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
+.viewer-scroll img { display: block; width: 100%; max-width: none; background: #fff; }
+.viewer-scroll img.zoomed { width: 220%; }

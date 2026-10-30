@@ -233,7 +233,12 @@ function viewList(root) {
         <button type="button" class="btn" id="f-reset">清空筛选</button>
       </div>
     </div>
-    <p class="muted small num" id="count"></p>
+    ${backupBannerHTML()}
+    <div class="row" style="margin-top:12px">
+      <span class="muted small num grow" id="count"></span>
+      <button type="button" class="btn sm" id="p-seq">顺序刷题</button>
+      <button type="button" class="btn sm primary" id="p-rand">随机刷题</button>
+    </div>
     <div class="list" id="list"></div>`;
 
   const draw = () => {
@@ -246,8 +251,11 @@ function viewList(root) {
     } else {
       $('#list').innerHTML = list.map(itemHTML).join('');
     }
+    $('#p-seq').disabled = $('#p-rand').disabled = !list.length;
   };
   draw();
+  $('#p-seq').addEventListener('click', () => startPractice(filtered().map(q => q.id), false));
+  $('#p-rand').addEventListener('click', () => startPractice(filtered().map(q => q.id), true));
 
   let t;
   $('#f-q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => { f.q = e.target.value; saveFilters(); draw(); }, 200); });
@@ -298,10 +306,16 @@ function viewReview(root) {
   const upcoming = state.questions.filter(q => q.review && q.review.due > today()).sort((a, b) => a.review.due.localeCompare(b.review.due));
   root.innerHTML = `
     <p class="muted small">做错的题会按 ${REVIEW_DAYS.join(' → ')} 天的间隔安排复习。复习时先自己做，再看答案；连续答对 ${REVIEW_DAYS.length} 次就算掌握。</p>
-    <h2 class="section-title">今日待复习 · <span class="num">${due.length}</span> 题</h2>
+    ${backupBannerHTML()}
+    <div class="row" style="margin-top:20px">
+      <h2 class="section-title grow" style="margin:0">今日待复习 · <span class="num">${due.length}</span> 题</h2>
+      ${due.length ? '<button type="button" class="btn primary" id="r-start">开始复习</button>' : ''}
+    </div>
     <div class="list" id="due">${due.length ? due.map(itemHTML).join('') : '<div class="empty"><strong>今天没有要复习的题</strong>做错的题标记为「做错」后会自动出现在这里。</div>'}</div>
     <h2 class="section-title">之后的复习安排</h2>
     <div class="bars">${upcoming.length ? summarizeUpcoming(upcoming) : '<p class="muted small">暂无</p>'}</div>`;
+  const start = $('#r-start', root);
+  if (start) start.addEventListener('click', () => startPractice(due.map(q => q.id), false));
 }
 
 function summarizeUpcoming(list) {
@@ -471,9 +485,10 @@ function openDetail(id) {
   const q = state.questions.find(x => x.id === id);
   if (!q) return;
   const hasAnswer = q.answer || q.analysis || (q.answerImages || []).length;
+  const inSession = session && session.ids[session.i] === id;
   openDialog(`
-    <div class="dlg-head"><h2>${esc(q.subject)} · ${esc(q.qtype || '题目')}</h2>
-      <div class="row"><button class="btn sm" type="button" id="d-edit">编辑</button><button class="btn sm" type="button" data-close>关闭</button></div></div>
+    <div class="dlg-head"><h2>${inSession ? `<span class="num">${session.i + 1} / ${session.ids.length}</span> · ` : ''}${esc(q.subject)} · ${esc(q.qtype || '题目')}</h2>
+      <div class="row"><button class="btn sm" type="button" id="d-edit">编辑</button><button class="btn sm" type="button" data-close>${inSession ? '结束' : '关闭'}</button></div></div>
     <div class="dlg-body">
       <div class="q-meta">
         <span class="tag subj ${subjClass(q.subject)}">${esc(q.subject)}</span>
@@ -503,6 +518,11 @@ function openDetail(id) {
           <div class="checks">${ERROR_REASONS.map(r => `<label class="check"><input type="checkbox" value="${r}"${(q.errorReasons || []).includes(r) ? ' checked' : ''}>${r}</label>`).join('')}</div>
           <button class="btn bad" type="button" id="d-wrong-save" style="margin-top:8px">记为错题</button>
         </div>
+        ${inSession ? `<div class="row" style="margin-top:8px">
+          <button class="btn sm" type="button" id="d-prev"${session.i === 0 ? ' disabled' : ''}>上一题</button>
+          <span class="grow"></span>
+          <button class="btn sm" type="button" id="d-skip">跳过</button>
+        </div>` : ''}
         <p class="muted small num" style="margin:8px 0 0">状态：${STATUS[q.status]}${q.wrongCount ? ` · 累计错 ${q.wrongCount} 次` : ''}${q.review ? ` · 下次复习 ${q.review.due}` : ''}${q.mastered && !q.review ? ' · 已掌握' : ''}</p>
       </div>
     </div>`, root => {
@@ -513,18 +533,85 @@ function openDetail(id) {
     $('#d-right', root).addEventListener('click', async () => {
       markResult(q, 'right');
       await saveQuestion(q);
-      toast(q.review ? `下次复习：${q.review.due}` : q.mastered ? '这道题已掌握' : '已记录');
-      dlg.close(); route();
+      if (session) session.right++;
+      else toast(q.review ? `下次复习：${q.review.due}` : q.mastered ? '这道题已掌握' : '已记录');
+      afterMark();
     });
     $('#d-wrong', root).addEventListener('click', () => { $('#d-reasons', root).hidden = false; });
     $('#d-wrong-save', root).addEventListener('click', async () => {
       const reasons = [...root.querySelectorAll('#d-reasons input:checked')].map(i => i.value);
       markResult(q, 'wrong', reasons);
       await saveQuestion(q);
-      toast(`已记为错题，${q.review.due} 复习`);
-      dlg.close(); route();
+      if (session) session.wrong++;
+      else toast(`已记为错题，${q.review.due} 复习`);
+      afterMark();
     });
+    if (inSession) {
+      $('#d-prev', root).addEventListener('click', () => { session.i--; openDetail(session.ids[session.i]); });
+      $('#d-skip', root).addEventListener('click', afterMark);
+    }
+    root.querySelectorAll('.q-imgs img').forEach(img => img.addEventListener('click', () => openViewer(img.src)));
   });
+}
+
+/* ========== 刷题 / 复习会话 ========== */
+let session = null;
+
+function startPractice(ids, shuffle) {
+  if (!ids.length) return;
+  ids = ids.slice();
+  if (shuffle) {
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+  }
+  session = { ids, i: 0, right: 0, wrong: 0 };
+  openDetail(ids[0]);
+}
+
+function afterMark() {
+  if (session && session.i < session.ids.length - 1) {
+    session.i++;
+    openDetail(session.ids[session.i]);
+    return;
+  }
+  if (session) {
+    const { ids, right, wrong } = session;
+    session = null;
+    toast(`本轮 ${ids.length} 题完成：对 ${right}，错 ${wrong}`);
+  }
+  dlg.close();
+  route();
+}
+
+dlg.addEventListener('close', () => {
+  if (session) { session = null; route(); }
+});
+
+/* ========== 看大图 ========== */
+function openViewer(src) {
+  const v = document.createElement('div');
+  v.className = 'viewer';
+  v.innerHTML = `<div class="viewer-bar"><button class="btn sm" type="button" data-zoom>放大</button><button class="btn sm" type="button" data-x>关闭</button></div>
+    <div class="viewer-scroll"><img src="${esc(src)}" alt="题目图片"></div>`;
+  dlg.appendChild(v);
+  const img = $('img', v), zoom = $('[data-zoom]', v);
+  zoom.addEventListener('click', () => {
+    const on = img.classList.toggle('zoomed');
+    zoom.textContent = on ? '缩小' : '放大';
+  });
+  $('[data-x]', v).addEventListener('click', () => v.remove());
+}
+
+/* ========== 备份提醒 ========== */
+function backupBannerHTML() {
+  if (state.questions.length < 5) return '';
+  let last = '';
+  try { last = localStorage.getItem('tiku-last-export') || ''; } catch (e) { /* 忽略 */ }
+  const days = last ? Math.floor((new Date(today()) - new Date(last)) / 864e5) : null;
+  if (days !== null && days < 7) return '';
+  return `<a class="banner" href="#data">${days === null ? '还没有导出过备份' : `已经 ${days} 天没有备份`}，题目只存在这台设备上。点这里去导出 →</a>`;
 }
 
 /* ========== 录入 / 编辑 ========== */
@@ -694,6 +781,7 @@ async function main() {
     return;
   }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   $('#btn-add').addEventListener('click', () => openEditor(null));
   $('#app').addEventListener('click', e => {
     const b = e.target.closest('.item, .qnum'); if (b) openDetail(b.dataset.id);
